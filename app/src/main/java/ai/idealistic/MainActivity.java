@@ -1,6 +1,7 @@
 package ai.idealistic;
 
 import android.annotation.SuppressLint;
+import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
@@ -57,6 +58,7 @@ public class MainActivity extends AppCompatActivity {
         webView = findViewById(R.id.webView);
         webView.setBackgroundColor(Color.BLACK);
         progressBar = findViewById(R.id.progressBar);
+        progressBar.setIndeterminateTintList(ColorStateList.valueOf(Color.WHITE));
         swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout);
 
         // Configure CookieManager
@@ -110,13 +112,13 @@ public class MainActivity extends AppCompatActivity {
                 try {
                     CustomTabsIntent.Builder builder = new CustomTabsIntent.Builder();
                     builder.setShowTitle(true);
-                    
+
                     // Set close button icon (white 'X')
                     Bitmap closeIcon = BitmapFactory.decodeResource(getResources(), R.drawable.ic_close);
                     if (closeIcon != null) {
                         builder.setCloseButtonIcon(closeIcon);
                     }
-                    
+
                     CustomTabsIntent intent = builder.build();
                     intent.launchUrl(MainActivity.this, Uri.parse(url));
                 } catch (Exception e) {
