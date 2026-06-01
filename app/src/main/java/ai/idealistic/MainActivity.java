@@ -6,9 +6,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.View;
-import android.webkit.ConsoleMessage;
 import android.webkit.CookieManager;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -17,6 +15,7 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.ProgressBar;
 import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
@@ -29,6 +28,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 public class MainActivity extends AppCompatActivity {
 
     private WebView webView;
+    private ProgressBar progressBar;
     private SwipeRefreshLayout swipeRefreshLayout;
     private static final String BASE_URL = "https://www.idealistic.ai";
     private static final String ALLOWED_DOMAIN = "idealistic.ai";
@@ -55,7 +55,8 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         webView = findViewById(R.id.webView);
-        webView.setBackgroundColor(Color.TRANSPARENT);
+        webView.setBackgroundColor(Color.BLACK);
+        progressBar = findViewById(R.id.progressBar);
         swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout);
 
         // Configure CookieManager
@@ -77,7 +78,13 @@ public class MainActivity extends AppCompatActivity {
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
+            public void onPageStarted(WebView view, String url, Bitmap favicon) {
+                progressBar.setVisibility(View.VISIBLE);
+            }
+
+            @Override
             public void onPageFinished(WebView view, String url) {
+                progressBar.setVisibility(View.GONE);
                 swipeRefreshLayout.setRefreshing(false);
                 CookieManager.getInstance().flush();
             }
@@ -85,7 +92,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                 if (request.isForMainFrame()) {
-                    Log.e("WebViewError", "Error loading page: " + error.getDescription());
+                    progressBar.setVisibility(View.GONE);
                     swipeRefreshLayout.setRefreshing(false);
                     Toast.makeText(MainActivity.this, "Network Error: " + error.getDescription(), Toast.LENGTH_LONG).show();
                 }
@@ -121,16 +128,11 @@ public class MainActivity extends AppCompatActivity {
 
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
-            public boolean onConsoleMessage(ConsoleMessage consoleMessage) {
-                Log.d("WebViewConsole", consoleMessage.message() + " -- From line "
-                        + consoleMessage.lineNumber() + " of "
-                        + consoleMessage.sourceId());
-                return true;
-            }
-
-            @Override
             public void onProgressChanged(WebView view, int newProgress) {
-                if (newProgress == 100) {
+                if (newProgress < 100) {
+                    progressBar.setVisibility(View.VISIBLE);
+                } else {
+                    progressBar.setVisibility(View.GONE);
                     swipeRefreshLayout.setRefreshing(false);
                 }
             }
@@ -156,7 +158,7 @@ public class MainActivity extends AppCompatActivity {
         swipeRefreshLayout.setOnRefreshListener(() -> webView.reload());
 
         // Fix scroll conflict
-        swipeRefreshLayout.setOnChildScrollUpCallback((parent, child) -> webView.canScrollVertically(-1));
+        swipeRefreshLayout.setOnChildScrollUpCallback((parent, child) -> webView.getScrollY() > 0);
 
         // Handle Back button
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
