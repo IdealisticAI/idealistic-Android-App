@@ -1,6 +1,7 @@
 package ai.idealistic;
 
 import android.annotation.SuppressLint;
+import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -103,7 +104,19 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
+
+                if (url.contains("action=external_checkout")) {
+                    // Strip the trigger parameter so the website loads cleanly in Chrome
+                    String cleanUrl = url.replace("?action=external_checkout", "");
+
+                    // Fire the intent to open the default external browser
+                    Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(cleanUrl));
+                    view.getContext().startActivity(intent);
+
+                    return true; // Tells the WebView: "I handled this, do not load it here."
+                }
                 String host = request.getUrl().getHost();
+
                 if (host != null && host.endsWith(ALLOWED_DOMAIN)) {
                     return false; // Load in app
                 }
