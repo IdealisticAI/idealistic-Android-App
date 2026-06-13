@@ -196,7 +196,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onSaveInstanceState(@NonNull Bundle outState) {
         super.onSaveInstanceState(outState);
-        
+
         if (webView != null) {
             webView.saveState(outState);
         }
