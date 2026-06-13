@@ -9,6 +9,7 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
+import android.view.WindowManager;
 import android.webkit.CookieManager;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -23,6 +24,7 @@ import android.widget.Toast;
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.browser.customtabs.CustomTabsIntent;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
@@ -54,6 +56,10 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED);
+
         setContentView(R.layout.activity_main);
 
         webView = findViewById(R.id.webView);
@@ -62,7 +68,6 @@ public class MainActivity extends AppCompatActivity {
         progressBar.setIndeterminateTintList(ColorStateList.valueOf(Color.WHITE));
         swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout);
 
-        // Configure CookieManager
         CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.setAcceptCookie(true);
         cookieManager.setAcceptThirdPartyCookies(webView, true);
@@ -72,7 +77,6 @@ public class MainActivity extends AppCompatActivity {
         webSettings.setDomStorageEnabled(true);
         webSettings.setLoadWithOverviewMode(true);
         webSettings.setUseWideViewPort(true);
-        webSettings.setSaveFormData(true);
         webSettings.setAllowFileAccess(true);
         webSettings.setAllowContentAccess(true);
         webSettings.setDatabaseEnabled(true);
@@ -106,27 +110,21 @@ public class MainActivity extends AppCompatActivity {
                 String url = request.getUrl().toString();
 
                 if (url.contains("action=external_checkout")) {
-                    // Strip the trigger parameter so the website loads cleanly in Chrome
                     String cleanUrl = url.replace("?action=external_checkout", "");
-
-                    // Fire the intent to open the default external browser
                     Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(cleanUrl));
                     view.getContext().startActivity(intent);
-
-                    return true; // Tells the WebView: "I handled this, do not load it here."
+                    return true;
                 }
                 String host = request.getUrl().getHost();
 
                 if (host != null && host.endsWith(ALLOWED_DOMAIN)) {
-                    return false; // Load in app
+                    return false;
                 }
 
-                // Open external URLs in Chrome Custom Tabs with X close button
                 try {
                     CustomTabsIntent.Builder builder = new CustomTabsIntent.Builder();
                     builder.setShowTitle(true);
 
-                    // Set close button icon (white 'X')
                     Bitmap closeIcon = BitmapFactory.decodeResource(getResources(), R.drawable.ic_close);
                     if (closeIcon != null) {
                         builder.setCloseButtonIcon(closeIcon);
@@ -162,8 +160,10 @@ public class MainActivity extends AppCompatActivity {
                     filePickerLauncher.launch("*/*");
                 } catch (Exception e) {
                     Toast.makeText(MainActivity.this, "Picker failed", Toast.LENGTH_SHORT).show();
-                    fileChooserCallback.onReceiveValue(null);
-                    fileChooserCallback = null;
+                    if (fileChooserCallback != null) {
+                        fileChooserCallback.onReceiveValue(null);
+                        fileChooserCallback = null;
+                    }
                     return false;
                 }
                 return true;
@@ -172,10 +172,8 @@ public class MainActivity extends AppCompatActivity {
 
         swipeRefreshLayout.setOnRefreshListener(() -> webView.reload());
 
-        // Fix scroll conflict
         swipeRefreshLayout.setOnChildScrollUpCallback((parent, child) -> webView.getScrollY() > 0);
 
-        // Handle Back button
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
@@ -190,6 +188,17 @@ public class MainActivity extends AppCompatActivity {
 
         if (savedInstanceState == null) {
             webView.loadUrl(BASE_URL);
+        } else {
+            webView.restoreState(savedInstanceState);
+        }
+    }
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        
+        if (webView != null) {
+            webView.saveState(outState);
         }
     }
 
