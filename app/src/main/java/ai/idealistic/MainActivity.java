@@ -18,6 +18,8 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.Button;
+import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.Toast;
 
@@ -34,6 +36,8 @@ public class MainActivity extends AppCompatActivity {
     private WebView webView;
     private ProgressBar progressBar;
     private SwipeRefreshLayout swipeRefreshLayout;
+    private LinearLayout errorLayout;
+    private Button retryButton;
     private static final String BASE_URL = "https://www.idealistic.ai";
     private static final String ALLOWED_DOMAIN = "idealistic.ai";
 
@@ -63,10 +67,13 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         webView = findViewById(R.id.webView);
-        webView.setBackgroundColor(Color.BLACK);
         progressBar = findViewById(R.id.progressBar);
-        progressBar.setIndeterminateTintList(ColorStateList.valueOf(Color.WHITE));
         swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout);
+        errorLayout = findViewById(R.id.errorLayout);
+        retryButton = findViewById(R.id.retryButton);
+
+        webView.setBackgroundColor(Color.BLACK);
+        progressBar.setIndeterminateTintList(ColorStateList.valueOf(Color.WHITE));
 
         CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.setAcceptCookie(true);
@@ -87,6 +94,8 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onPageStarted(WebView view, String url, Bitmap favicon) {
                 progressBar.setVisibility(View.VISIBLE);
+                errorLayout.setVisibility(View.GONE);
+                webView.setVisibility(View.VISIBLE);
             }
 
             @Override
@@ -101,7 +110,8 @@ public class MainActivity extends AppCompatActivity {
                 if (request.isForMainFrame()) {
                     progressBar.setVisibility(View.GONE);
                     swipeRefreshLayout.setRefreshing(false);
-                    Toast.makeText(MainActivity.this, "Network Error: " + error.getDescription(), Toast.LENGTH_LONG).show();
+                    webView.setVisibility(View.GONE);
+                    errorLayout.setVisibility(View.VISIBLE);
                 }
             }
 
@@ -170,14 +180,28 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        swipeRefreshLayout.setOnRefreshListener(() -> webView.reload());
+        swipeRefreshLayout.setOnRefreshListener(() -> {
+            if (webView.getVisibility() == View.VISIBLE) {
+                webView.reload();
+            } else {
+                webView.loadUrl(BASE_URL);
+            }
+        });
 
-        swipeRefreshLayout.setOnChildScrollUpCallback((parent, child) -> webView.getScrollY() > 0);
+        webView.getViewTreeObserver().addOnScrollChangedListener(() -> {
+            swipeRefreshLayout.setEnabled(webView.getScrollY() == 0);
+        });
+
+        retryButton.setOnClickListener(v -> {
+            progressBar.setVisibility(View.VISIBLE);
+            errorLayout.setVisibility(View.GONE);
+            webView.loadUrl(BASE_URL);
+        });
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
-                if (webView.canGoBack()) {
+                if (webView.getVisibility() == View.VISIBLE && webView.canGoBack()) {
                     webView.goBack();
                 } else {
                     setEnabled(false);
@@ -196,7 +220,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onSaveInstanceState(@NonNull Bundle outState) {
         super.onSaveInstanceState(outState);
-
         if (webView != null) {
             webView.saveState(outState);
         }

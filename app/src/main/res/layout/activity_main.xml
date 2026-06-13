@@ -15,6 +15,36 @@
             android:layout_height="match_parent"
             android:background="@android:color/black" />
 
+        <LinearLayout
+            android:id="@+id/errorLayout"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#000000"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <ImageView
+                android:layout_width="120dp"
+                android:layout_height="120dp"
+                android:src="@mipmap/ic_launcher" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="No connection found"
+                android:textColor="#FFFFFF"
+                android:textSize="20sp" />
+
+            <Button
+                android:id="@+id/retryButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:text="Retry" />
+        </LinearLayout>
+
         <ProgressBar
             android:id="@+id/progressBar"
             android:layout_width="wrap_content"
