@@ -8,6 +8,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
@@ -56,16 +57,20 @@ public class MainActivity extends AppCompatActivity {
             }
     );
 
-    @SuppressLint("SetJavaScriptEnabled")
+    @SuppressLint({"SetJavaScriptEnabled", "ClickableViewAccessibility"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().hide();
+        }
+
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
                 WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED);
+        getWindow().setNavigationBarColor(Color.BLACK);
 
         setContentView(R.layout.activity_main);
-        getWindow().setNavigationBarColor(Color.BLACK);
 
         webView = findViewById(R.id.webView);
         progressBar = findViewById(R.id.progressBar);
@@ -189,8 +194,15 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        webView.getViewTreeObserver().addOnScrollChangedListener(() -> {
-            swipeRefreshLayout.setEnabled(webView.getScrollY() == 0);
+        webView.setOnTouchListener((v, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                if (event.getY() < webView.getHeight() * 0.15) {
+                    swipeRefreshLayout.setEnabled(true);
+                } else {
+                    swipeRefreshLayout.setEnabled(false);
+                }
+            }
+            return false;
         });
 
         retryButton.setOnClickListener(v -> {
