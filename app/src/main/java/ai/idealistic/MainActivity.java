@@ -65,6 +65,7 @@ public class MainActivity extends AppCompatActivity {
                 WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED);
 
         setContentView(R.layout.activity_main);
+        getWindow().setNavigationBarColor(Color.BLACK);
 
         webView = findViewById(R.id.webView);
         progressBar = findViewById(R.id.progressBar);
