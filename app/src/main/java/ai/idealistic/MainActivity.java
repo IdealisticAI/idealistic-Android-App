@@ -28,11 +28,10 @@ import android.widget.ProgressBar;
 import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.browser.customtabs.CustomTabsIntent;
+import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
@@ -49,51 +48,8 @@ public class MainActivity extends AppCompatActivity {
     private ValueCallback<Uri[]> fileChooserCallback;
     private PermissionRequest pendingPermissionRequest;
 
-    private final ActivityResultLauncher<Intent> filePickerActivityLauncher = registerForActivityResult(
-            new ActivityResultContracts.StartActivityForResult(),
-            result -> {
-                if (fileChooserCallback != null) {
-                    Uri[] results = null;
-                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-                        String dataString = result.getData().getDataString();
-                        if (dataString != null) {
-                            results = new Uri[]{Uri.parse(dataString)};
-                        } else if (result.getData().getClipData() != null) {
-                            int count = result.getData().getClipData().getItemCount();
-                            results = new Uri[count];
-                            for (int i = 0; i < count; i++) {
-                                results[i] = result.getData().getClipData().getItemAt(i).getUri();
-                            }
-                        }
-                    }
-                    fileChooserCallback.onReceiveValue(results);
-                    fileChooserCallback = null;
-                }
-            }
-    );
-
-    private final ActivityResultLauncher<String> requestPermissionLauncher = registerForActivityResult(
-            new ActivityResultContracts.RequestPermission(),
-            isGranted -> {
-                if (isGranted) {
-                    if (pendingPermissionRequest != null) {
-                        runOnUiThread(() -> {
-                            try {
-                                pendingPermissionRequest.grant(pendingPermissionRequest.getResources());
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                            }
-                            pendingPermissionRequest = null;
-                        });
-                    }
-                } else {
-                    if (pendingPermissionRequest != null) {
-                        pendingPermissionRequest.deny();
-                        pendingPermissionRequest = null;
-                    }
-                }
-            }
-    );
+    private static final int FILE_CHOOSER_RESULT_CODE = 1001;
+    private static final int AUDIO_PERMISSION_REQUEST_CODE = 1002;
 
     @SuppressLint({"SetJavaScriptEnabled", "ClickableViewAccessibility"})
     @Override
@@ -212,18 +168,25 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback, FileChooserParams fileChooserParams) {
-                if (fileChooserCallback != null) {
-                    fileChooserCallback.onReceiveValue(null);
+                if (MainActivity.this.fileChooserCallback != null) {
+                    MainActivity.this.fileChooserCallback.onReceiveValue(null);
                 }
-                fileChooserCallback = filePathCallback;
+                MainActivity.this.fileChooserCallback = filePathCallback;
+
                 try {
-                    Intent intent = fileChooserParams.createIntent();
-                    filePickerActivityLauncher.launch(intent);
+                    Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+                    intent.addCategory(Intent.CATEGORY_OPENABLE);
+                    intent.setType("*/*");
+
+                    if (fileChooserParams.getAcceptTypes() != null && fileChooserParams.getAcceptTypes().length > 0) {
+                        intent.putExtra(Intent.EXTRA_MIME_TYPES, fileChooserParams.getAcceptTypes());
+                    }
+
+                    startActivityForResult(Intent.createChooser(intent, "Select File"), FILE_CHOOSER_RESULT_CODE);
                 } catch (Exception e) {
-                    Toast.makeText(MainActivity.this, "Picker failed", Toast.LENGTH_SHORT).show();
-                    if (fileChooserCallback != null) {
-                        fileChooserCallback.onReceiveValue(null);
-                        fileChooserCallback = null;
+                    if (MainActivity.this.fileChooserCallback != null) {
+                        MainActivity.this.fileChooserCallback.onReceiveValue(null);
+                        MainActivity.this.fileChooserCallback = null;
                     }
                     return false;
                 }
@@ -240,7 +203,7 @@ public class MainActivity extends AppCompatActivity {
                                     request.grant(request.getResources());
                                 } else {
                                     pendingPermissionRequest = request;
-                                    requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO);
+                                    ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.RECORD_AUDIO}, AUDIO_PERMISSION_REQUEST_CODE);
                                 }
                                 return;
                             }
@@ -292,6 +255,55 @@ public class MainActivity extends AppCompatActivity {
             webView.loadUrl(BASE_URL);
         } else {
             webView.restoreState(savedInstanceState);
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == FILE_CHOOSER_RESULT_CODE) {
+            if (fileChooserCallback == null) {
+                super.onActivityResult(requestCode, resultCode, data);
+                return;
+            }
+
+            Uri[] results = null;
+            if (resultCode == RESULT_OK && data != null) {
+                String dataString = data.getDataString();
+                if (dataString != null) {
+                    results = new Uri[]{Uri.parse(dataString)};
+                } else if (data.getClipData() != null) {
+                    int count = data.getClipData().getItemCount();
+                    results = new Uri[count];
+                    for (int i = 0; i < count; i++) {
+                        results[i] = data.getClipData().getItemAt(i).getUri();
+                    }
+                }
+            }
+
+            fileChooserCallback.onReceiveValue(results);
+            fileChooserCallback = null;
+        } else {
+            super.onActivityResult(requestCode, resultCode, data);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        if (requestCode == AUDIO_PERMISSION_REQUEST_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                if (pendingPermissionRequest != null) {
+                    pendingPermissionRequest.grant(pendingPermissionRequest.getResources());
+                    pendingPermissionRequest = null;
+                }
+            } else {
+                if (pendingPermissionRequest != null) {
+                    pendingPermissionRequest.deny();
+                    pendingPermissionRequest = null;
+                }
+                Toast.makeText(this, "Microphone permission is required", Toast.LENGTH_SHORT).show();
+            }
+        } else {
+            super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         }
     }
 
