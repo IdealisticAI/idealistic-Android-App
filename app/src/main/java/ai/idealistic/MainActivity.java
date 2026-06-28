@@ -1,7 +1,9 @@
 package ai.idealistic;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -12,6 +14,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
+import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -30,6 +33,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.browser.customtabs.CustomTabsIntent;
+import androidx.core.content.ContextCompat;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 public class MainActivity extends AppCompatActivity {
@@ -43,6 +47,8 @@ public class MainActivity extends AppCompatActivity {
     private static final String ALLOWED_DOMAIN = "idealistic.ai";
 
     private ValueCallback<Uri[]> fileChooserCallback;
+    private PermissionRequest pendingPermissionRequest;
+
     private final ActivityResultLauncher<String> filePickerLauncher = registerForActivityResult(
             new ActivityResultContracts.GetMultipleContents(),
             uris -> {
@@ -53,6 +59,23 @@ public class MainActivity extends AppCompatActivity {
                         fileChooserCallback.onReceiveValue(null);
                     }
                     fileChooserCallback = null;
+                }
+            }
+    );
+
+    private final ActivityResultLauncher<String> requestPermissionLauncher = registerForActivityResult(
+            new ActivityResultContracts.RequestPermission(),
+            isGranted -> {
+                if (isGranted) {
+                    if (pendingPermissionRequest != null) {
+                        pendingPermissionRequest.grant(pendingPermissionRequest.getResources());
+                        pendingPermissionRequest = null;
+                    }
+                } else {
+                    if (pendingPermissionRequest != null) {
+                        pendingPermissionRequest.deny();
+                        pendingPermissionRequest = null;
+                    }
                 }
             }
     );
@@ -183,6 +206,24 @@ public class MainActivity extends AppCompatActivity {
                     return false;
                 }
                 return true;
+            }
+
+            @Override
+            public void onPermissionRequest(final PermissionRequest request) {
+                if (request.getResources() != null) {
+                    for (String resource : request.getResources()) {
+                        if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)) {
+                            if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                                request.grant(request.getResources());
+                            } else {
+                                pendingPermissionRequest = request;
+                                requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO);
+                            }
+                            return;
+                        }
+                    }
+                }
+                request.deny();
             }
         });
 
