@@ -19,8 +19,9 @@
 
         <activity
             android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize"
             android:exported="true"
-            android:screenOrientation="portrait"
+            android:supportsPictureInPicture="true"
             android:theme="@style/Theme.Idealistic">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
