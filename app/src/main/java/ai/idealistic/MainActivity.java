@@ -225,7 +225,8 @@ public class MainActivity extends AppCompatActivity {
             if (webView.getVisibility() == View.VISIBLE) {
                 webView.reload();
             } else {
-                webView.loadUrl(BASE_URL);
+                String currentUrl = webView.getUrl();
+                webView.loadUrl(currentUrl != null ? currentUrl : BASE_URL);
             }
         });
 
@@ -243,7 +244,8 @@ public class MainActivity extends AppCompatActivity {
         retryButton.setOnClickListener(v -> {
             progressBar.setVisibility(View.VISIBLE);
             errorLayout.setVisibility(View.GONE);
-            webView.loadUrl(BASE_URL);
+            String currentUrl = webView.getUrl();
+            webView.loadUrl(currentUrl != null ? currentUrl : BASE_URL);
         });
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
@@ -259,9 +261,41 @@ public class MainActivity extends AppCompatActivity {
         });
 
         if (savedInstanceState == null) {
-            webView.loadUrl(BASE_URL);
+            // Handle incoming deep link on fresh start
+            handleDeepLinkIntent(getIntent());
         } else {
             webView.restoreState(savedInstanceState);
+        }
+    }
+
+    /**
+     * Handles intents when the app is already open in the background (singleTask)
+     */
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleDeepLinkIntent(intent);
+    }
+
+    /**
+     * Extracts the target URL from the custom intent and loads it.
+     */
+    private void handleDeepLinkIntent(Intent intent) {
+        String urlToLoad = BASE_URL;
+
+        if (intent != null && Intent.ACTION_VIEW.equals(intent.getAction())) {
+            Uri data = intent.getData();
+            if (data != null && "idealistic".equals(data.getScheme())) {
+                String targetUrl = data.getQueryParameter("url");
+                if (targetUrl != null && !targetUrl.isEmpty()) {
+                    urlToLoad = targetUrl;
+                }
+            }
+        }
+
+        if (webView != null) {
+            webView.loadUrl(urlToLoad);
         }
     }
 
