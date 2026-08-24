@@ -12,10 +12,12 @@ import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Message;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
+import android.webkit.JsResult;
 import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -32,6 +34,7 @@ import android.widget.Toast;
 import androidx.activity.EdgeToEdge;
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.browser.customtabs.CustomTabsIntent;
 import androidx.core.app.ActivityCompat;
@@ -92,6 +95,10 @@ public class MainActivity extends AppCompatActivity {
         webSettings.setLoadWithOverviewMode(true);
         webSettings.setUseWideViewPort(true);
 
+        // Enable popup windows for window.open() (e.g., "Try" button)
+        webSettings.setJavaScriptCanOpenWindowsAutomatically(true);
+        webSettings.setSupportMultipleWindows(true);
+
         webSettings.setAllowFileAccess(true);
         webSettings.setAllowContentAccess(true);
         webSettings.setAllowFileAccessFromFileURLs(true);
@@ -138,26 +145,14 @@ public class MainActivity extends AppCompatActivity {
                     view.getContext().startActivity(intent);
                     return true;
                 }
+
                 String host = request.getUrl().getHost();
 
                 if (host != null && host.endsWith(ALLOWED_DOMAIN)) {
                     return false;
                 }
 
-                try {
-                    CustomTabsIntent.Builder builder = new CustomTabsIntent.Builder();
-                    builder.setShowTitle(true);
-
-                    Bitmap closeIcon = BitmapFactory.decodeResource(getResources(), R.drawable.ic_close);
-                    if (closeIcon != null) {
-                        builder.setCloseButtonIcon(closeIcon);
-                    }
-
-                    CustomTabsIntent intent = builder.build();
-                    intent.launchUrl(MainActivity.this, Uri.parse(url));
-                } catch (Exception e) {
-                    Toast.makeText(MainActivity.this, "External link error", Toast.LENGTH_SHORT).show();
-                }
+                openExternalUrl(url);
                 return true;
             }
         });
@@ -171,6 +166,48 @@ public class MainActivity extends AppCompatActivity {
                     progressBar.setVisibility(View.GONE);
                     swipeRefreshLayout.setRefreshing(false);
                 }
+            }
+
+            // Handles window.open() requests (like the "Try" button)
+            @Override
+            public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, Message resultMsg) {
+                WebView tempWebView = new WebView(MainActivity.this);
+                tempWebView.setWebViewClient(new WebViewClient() {
+                    @Override
+                    public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                        openExternalUrl(request.getUrl().toString());
+                        return true;
+                    }
+                });
+                WebView.WebViewTransport transport = (WebView.WebViewTransport) resultMsg.obj;
+                transport.setWebView(tempWebView);
+                resultMsg.sendToTarget();
+                return true;
+            }
+
+            // Native Dialog for javascript: alert()
+            @Override
+            public boolean onJsAlert(WebView view, String url, String message, JsResult result) {
+                new AlertDialog.Builder(MainActivity.this)
+                        .setMessage(message)
+                        .setPositiveButton(android.R.string.ok, (dialog, which) -> result.confirm())
+                        .setCancelable(false)
+                        .create()
+                        .show();
+                return true;
+            }
+
+            // Native Dialog for javascript: confirm() -> (Sign Out, Delete History)
+            @Override
+            public boolean onJsConfirm(WebView view, String url, String message, JsResult result) {
+                new AlertDialog.Builder(MainActivity.this)
+                        .setMessage(message)
+                        .setPositiveButton(android.R.string.ok, (dialog, which) -> result.confirm())
+                        .setNegativeButton(android.R.string.cancel, (dialog, which) -> result.cancel())
+                        .setCancelable(false)
+                        .create()
+                        .show();
+                return true;
             }
 
             @Override
@@ -261,16 +298,34 @@ public class MainActivity extends AppCompatActivity {
         });
 
         if (savedInstanceState == null) {
-            // Handle incoming deep link on fresh start
             handleDeepLinkIntent(getIntent());
         } else {
             webView.restoreState(savedInstanceState);
         }
     }
 
-    /**
-     * Handles intents when the app is already open in the background (singleTask)
-     */
+    private void openExternalUrl(String url) {
+        try {
+            CustomTabsIntent.Builder builder = new CustomTabsIntent.Builder();
+            builder.setShowTitle(true);
+
+            Bitmap closeIcon = BitmapFactory.decodeResource(getResources(), R.drawable.ic_close);
+            if (closeIcon != null) {
+                builder.setCloseButtonIcon(closeIcon);
+            }
+
+            CustomTabsIntent intent = builder.build();
+            intent.launchUrl(MainActivity.this, Uri.parse(url));
+        } catch (Exception e) {
+            try {
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                startActivity(intent);
+            } catch (Exception ex) {
+                Toast.makeText(MainActivity.this, "Unable to open link", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
@@ -278,9 +333,6 @@ public class MainActivity extends AppCompatActivity {
         handleDeepLinkIntent(intent);
     }
 
-    /**
-     * Extracts the target URL from the custom intent and loads it.
-     */
     private void handleDeepLinkIntent(Intent intent) {
         String urlToLoad = BASE_URL;
 
@@ -289,6 +341,12 @@ public class MainActivity extends AppCompatActivity {
             if (data != null && "idealistic".equals(data.getScheme())) {
                 String targetUrl = data.getQueryParameter("url");
                 if (targetUrl != null && !targetUrl.isEmpty()) {
+                    // FORCE HTTPS: Prevents Android 9+ Cleartext Security Blocks
+                    if (targetUrl.toLowerCase().startsWith("http://")) {
+                        targetUrl = "https://" + targetUrl.substring(7);
+                    } else if (!targetUrl.toLowerCase().startsWith("https://")) {
+                        targetUrl = "https://" + targetUrl;
+                    }
                     urlToLoad = targetUrl;
                 }
             }
