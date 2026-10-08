@@ -51,6 +51,29 @@ public class MainActivity extends AppCompatActivity {
     private static final String BASE_URL = "https://www.idealistic.ai";
     private static final String ALLOWED_DOMAIN = "idealistic.ai";
 
+    // The only pages the app may open inside its own web view: https pages of idealistic.ai or its subdomains.
+    // A plain endsWith("idealistic.ai") is not enough, it would also accept hosts such as "evilidealistic.ai", and http must never be trusted.
+    static boolean isTrustedHost(String scheme, String host) {
+        if (scheme == null || host == null || !scheme.equalsIgnoreCase("https")) {
+            return false;
+        }
+        String lowerHost = host.toLowerCase(java.util.Locale.ROOT);
+        return lowerHost.equals(ALLOWED_DOMAIN) || lowerHost.endsWith("." + ALLOWED_DOMAIN);
+    }
+
+    private static boolean isTrustedUrl(Uri uri) {
+        return uri != null && isTrustedHost(uri.getScheme(), uri.getHost());
+    }
+
+    // External links are only ever handed to the system for these schemes (never intent:, file:, content: and similar)
+    static boolean isSafeExternalScheme(String scheme) {
+        if (scheme == null) {
+            return false;
+        }
+        String lowerScheme = scheme.toLowerCase(java.util.Locale.ROOT);
+        return lowerScheme.equals("https") || lowerScheme.equals("http") || lowerScheme.equals("mailto") || lowerScheme.equals("tel");
+    }
+
     private ValueCallback<Uri[]> fileChooserCallback;
     private PermissionRequest pendingPermissionRequest;
 
@@ -141,14 +164,16 @@ public class MainActivity extends AppCompatActivity {
 
                 if (url.contains("action=external_checkout")) {
                     String cleanUrl = url.replace("?action=external_checkout", "");
-                    Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(cleanUrl));
-                    view.getContext().startActivity(intent);
+                    Uri cleanUri = Uri.parse(cleanUrl);
+
+                    if (cleanUri.getScheme() != null && cleanUri.getScheme().equalsIgnoreCase("https")) {
+                        Intent intent = new Intent(Intent.ACTION_VIEW, cleanUri);
+                        view.getContext().startActivity(intent);
+                    }
                     return true;
                 }
 
-                String host = request.getUrl().getHost();
-
-                if (host != null && host.endsWith(ALLOWED_DOMAIN)) {
+                if (isTrustedUrl(request.getUrl())) {
                     return false;
                 }
 
@@ -305,6 +330,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void openExternalUrl(String url) {
+        Uri uri = Uri.parse(url);
+
+        if (!isSafeExternalScheme(uri.getScheme())) {
+            return;
+        }
+
         try {
             CustomTabsIntent.Builder builder = new CustomTabsIntent.Builder();
             builder.setShowTitle(true);
@@ -347,7 +378,10 @@ public class MainActivity extends AppCompatActivity {
                     } else if (!targetUrl.toLowerCase().startsWith("https://")) {
                         targetUrl = "https://" + targetUrl;
                     }
-                    urlToLoad = targetUrl;
+
+                    if (isTrustedUrl(Uri.parse(targetUrl))) {
+                        urlToLoad = targetUrl;
+                    }
                 }
             }
         }
