@@ -51,8 +51,6 @@ public class MainActivity extends AppCompatActivity {
     private static final String BASE_URL = "https://www.idealistic.ai";
     private static final String ALLOWED_DOMAIN = "idealistic.ai";
 
-    // The only pages the app may open inside its own web view: https pages of idealistic.ai or its subdomains.
-    // A plain endsWith("idealistic.ai") is not enough, it would also accept hosts such as "evilidealistic.ai", and http must never be trusted.
     static boolean isTrustedHost(String scheme, String host) {
         if (scheme == null || host == null || !scheme.equalsIgnoreCase("https")) {
             return false;
@@ -65,7 +63,6 @@ public class MainActivity extends AppCompatActivity {
         return uri != null && isTrustedHost(uri.getScheme(), uri.getHost());
     }
 
-    // External links are only ever handed to the system for these schemes (never intent:, file:, content: and similar)
     static boolean isSafeExternalScheme(String scheme) {
         if (scheme == null) {
             return false;
